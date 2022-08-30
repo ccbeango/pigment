@@ -117,3 +117,22 @@ describe('颜色格式情况', () => {
     expect(ansiStyles.ansi256ToAnsi(255)).toBe(37)
   })
 })
+
+describe('光标返回码', () => {
+  expect(ansiStyles.cursor.up(1)).toBe('\u001B[1A')
+  expect(ansiStyles.cursor.down(1)).toBe('\u001B[1B')
+  expect(ansiStyles.cursor.forward(1)).toBe('\u001B[1C')
+  expect(ansiStyles.cursor.back(1)).toBe('\u001B[1D')
+  expect(ansiStyles.cursor.nextLine(1)).toBe('\u001B[1E')
+  expect(ansiStyles.cursor.previousLine(1)).toBe('\u001B[1F')
+  expect(ansiStyles.cursor.moveColumn(1)).toBe('\u001B[1G')
+  expect(ansiStyles.cursor.move(1, 1)).toBe('\u001B[1;1H')
+  expect(ansiStyles.cursor.eraseInDisplay(1)).toBe('\u001B[1J')
+  expect(ansiStyles.cursor.eraseInLine(1)).toBe('\u001B[1K')
+  expect(ansiStyles.cursor.scrollUp(1)).toBe('\u001B[1S')
+  expect(ansiStyles.cursor.scrollDown(1)).toBe('\u001B[1T')
+
+  expect(ansiStyles.cursor.eraseInDisplay()).toBe(
+    ansiStyles.cursor.eraseInDisplay(0)
+  )
+})

@@ -1,6 +1,40 @@
-interface CSPair {
+export interface CSPair {
   open: string
   close: string
+}
+
+export interface Cursor {
+  // 光标上移 光标向指定的方向移动n格
+  up: (n?: number) => string
+  // 光标下移 光标向指定的方向移动n格
+  down: (n?: number) => string
+  // 光标前移 光标向指定的方向移动n格
+  forward: (n?: number) => string
+  // 光标后移 光标向指定的方向移动n格
+  back: (n?: number) => string
+  // 光标移到下一行 光标移动到下面第n（默认1）行的开头
+  nextLine: (n?: number) => string
+  // 光标移到上一行 光标移动到上面第n（默认1）行的开头
+  previousLine: (n?: number) => string
+  // 光标水平绝对 光标移动到第n（默认1）列
+  moveColumn: (n?: number) => string
+  // 光标位置 光标移动到第n行、第m列
+  move: (n: number, m: number) => string
+  // 擦除显示 清除屏幕的部分区域
+  // 如果n是0（或缺失），则清除从光标位置到屏幕末尾的部分。
+  // 如果n是1，则清除从光标位置到屏幕开头的部分。
+  // 如果n是2，则清除整个屏幕
+  // 如果n是3，则清除整个屏幕，并删除回滚缓存区中的所有行
+  eraseInDisplay: (n?: 0 | 1 | 2 | 3) => string
+  // 擦除行 清除行内的部分区域
+  // 如果n是0（或缺失），清除从光标位置到该行末尾的部分。
+  // 如果n是1，清除从光标位置到该行开头的部分。
+  // 如果n是2，清除整行。光标位置不变。
+  eraseInLine: (n?: 0 | 1 | 2) => string
+  // 向上滚动 整页向上滚动n（默认1）行。新行添加到底部
+  scrollUp: (n?: number) => string
+  // 向下滚动 整页向下滚动n（默认1）行。新行添加到顶部
+  scrollDown: (n?: number) => string
 }
 
 export interface Modifier {
@@ -121,22 +155,23 @@ export type StyleName =
   | keyof ForegroundColor
   | keyof BackgroundColor
 
-export interface AnsiSGRCode {
-  modifier: Modifier
-  color: ForegroundColor & ColorBase
-  bgColor: BackgroundColor & ColorBase
-}
-
-export type GroupName = 'modifier' | 'color' | 'bgColor'
-
 export type AnsiStyles = AnsiSGRCode &
   ForegroundColor &
   BackgroundColor &
   Modifier &
   ConvertColor
 
-export interface PigmentInstanceGetter {
-  _styles?: StyleName[]
+export interface AnsiSGRCode {
+  cursor: Cursor
+  modifier: Modifier
+  color: ForegroundColor & ColorBase
+  bgColor: BackgroundColor & ColorBase
+}
+
+export type ColorSupportLevel = 0 | 1 | 2
+
+export interface PigmentInstance {
+  _styles: CSPair[]
   (...text: unknown[]): string
 
   /**
@@ -150,20 +185,18 @@ export interface PigmentInstanceGetter {
 	- `2` - ANSI 256 colors support.
 	- `3` - Truecolor 16 million colors support.
 	*/
-  // level: ColorSupportLevel
-  //  visible: this
+  level: ColorSupportLevel
+  enabled: boolean
 
-  // rgb: (red: number, green: number, blue: number) => this
+  cursor: Cursor
 
-  // hex: (color: string) => this
-
-  // ansi256: (index: number) => this
-
-  // bgRgb: (red: number, green: number, blue: number) => this
-
-  // bgHex: (color: string) => this
-
-  // bgAnsi256: (index: number) => this
+  strip: (str: string) => string
+  rgb: (red: number, green: number, blue: number) => this
+  hex: (color: string) => this
+  ansi256: (index: number) => this
+  bgRgb: (red: number, green: number, blue: number) => this
+  bgHex: (color: string) => this
+  bgAnsi256: (index: number) => this
 
   reset: this
   bold: this
@@ -218,33 +251,3 @@ export interface PigmentInstanceGetter {
   bgCyanBright: this
   bgWhiteBright: this
 }
-
-export interface Builder {
-  (...args: string[]): any
-  _styles: StyleName[]
-}
-
-export interface PigmentGetter {
-  get(): PigmentInstance
-}
-
-export interface PigmentInstanceFunc {
-  rgb: (red: number, green: number, blue: number) => this
-
-  hex: (color: string) => this
-
-  ansi256: (index: number) => this
-
-  bgRgb: (red: number, green: number, blue: number) => this
-
-  bgHex: (color: string) => this
-
-  bgAnsi256: (index: number) => this
-}
-
-export type StyleFuncName = keyof PigmentInstanceFunc
-export type PigmentInstance = PigmentInstanceGetter & PigmentInstanceFunc
-
-export type PigmentStyle = Record<StyleName, PigmentGetter> &
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  Record<StyleFuncName, PigmentGetter>

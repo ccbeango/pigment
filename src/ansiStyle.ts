@@ -2,7 +2,7 @@
 
 基于ANSI转义序列
 
-https://en.wikipedia.org/wiki/ANSI_escape_code
+https://en.wikipedia.org/wiki/CSIape_code
 
 在文本中嵌入确定的字节序列，大部分以ESC转义字符和"["字符开始，终端会把这些字节序列解释为相应的指令，而不是普通的字符编码。
 
@@ -25,19 +25,34 @@ https://zh.wikipedia.org/wiki/ANSI%E8%BD%AC%E4%B9%89%E5%BA%8F%E5%88%97#%E9%80%89
 
 import type {
   AnsiStyles,
-  GroupName,
   StyleName,
   Modifier,
   ForegroundColor,
-  BackgroundColor
+  BackgroundColor,
+  Cursor
 } from './types'
 
 const FOREGROUND_COLOR_DEFAULT = 39 // 默认前景色
 const BACKGROUND_COLOR_DEFAULT = 49 // 默认背景色
 
 const ANSI_BACKGROUND_OFFSET = 10 // 前景、背景的ANSI Code相差10
-const ANSI_ESC = '\u001B[' // 开头 ESC [
-const ANSI_M = 'm' // 结尾 m
+const CSI = '\u001B[' // 开头 ESC [
+
+const FINAL_FLAG = {
+  CUU: 'A', // 光标上移
+  CUD: 'B', // 光标下移
+  CUF: 'C', // 光标前移
+  CUB: 'D', // 光标后移
+  CNL: 'E', // 光标移到下一行
+  CPL: 'F', // 光标移到上一行
+  CHA: 'G', // 光标水平绝对
+  CUP: 'H', // 光标位置
+  ED: 'J', // 擦除显示
+  EL: 'K', // 擦除行
+  SU: 'S', // 向上滚动
+  SD: 'T', // 向下滚动
+  SGR: 'm' // 选择图形再现
+}
 
 /**
  * 生成图形再现SGR参数的别名
@@ -58,7 +73,7 @@ function generateAliasStyles(ansiStyles: AnsiStyles) {
       flash: [6, 25], // 快速闪烁
       inverse: [7, 27], // 反显
       hidden: [8, 28], // 隐藏
-      strikethourgh: [9, 29], // 删除线
+      strikethrough: [9, 29], // 删除线
       default: [10, 10] // 默认字体
     },
     /* 前景色 */
@@ -109,14 +124,14 @@ function generateAliasStyles(ansiStyles: AnsiStyles) {
   }
 
   for (const [groupName, group] of Object.entries(ANSI_SGR_CODE)) {
-    const gName = groupName as GroupName
+    const gName = groupName as 'modifier' | 'color' | 'bgColor'
     const groupStyle = {} as Modifier & ForegroundColor & BackgroundColor
 
     for (const [styleName, style] of Object.entries(group)) {
       const name = styleName as StyleName
       ansiStyles[name] = {
-        open: `${ANSI_ESC}${style[0]}${ANSI_M}`,
-        close: `${ANSI_ESC}${style[1]}${ANSI_M}`
+        open: `${CSI}${style[0]}${FINAL_FLAG.SGR}`,
+        close: `${CSI}${style[1]}${FINAL_FLAG.SGR}`
       }
 
       groupStyle[name] = ansiStyles[name]
@@ -135,7 +150,7 @@ function generateAliasStyles(ansiStyles: AnsiStyles) {
 function generateCustomStyles(ansiStyles: AnsiStyles) {
   // 3/4位 16色 （前景 + 背景）
   const wrapAnsi16 = (offest = 0) => {
-    return (code: number) => `${ANSI_ESC}${code + offest}${ANSI_M}`
+    return (code: number) => `${CSI}${code + offest}${FINAL_FLAG.SGR}`
   }
 
   /**
@@ -144,7 +159,7 @@ function generateCustomStyles(ansiStyles: AnsiStyles) {
    * ESC[ … 48;5;<n> … m选择背景色
    */
   const wrapAnsi256 = (offest = 0) => {
-    return (code: number) => `${ANSI_ESC}${38 + offest};5;${code}${ANSI_M}`
+    return (code: number) => `${CSI}${38 + offest};5;${code}${FINAL_FLAG.SGR}`
   }
 
   /**
@@ -154,18 +169,18 @@ function generateCustomStyles(ansiStyles: AnsiStyles) {
    */
   const wrapAnsi16m = (offest = 0) => {
     return (red: number, green: number, blue: number) =>
-      `${ANSI_ESC}${38 + offest};2;${red};${green};${blue}${ANSI_M}`
+      `${CSI}${38 + offest};2;${red};${green};${blue}${FINAL_FLAG.SGR}`
   }
 
   ansiStyles.color.ansi = wrapAnsi16()
   ansiStyles.color.ansi256 = wrapAnsi256()
   ansiStyles.color.ansi16m = wrapAnsi16m()
-  ansiStyles.color.close = `${ANSI_ESC}${FOREGROUND_COLOR_DEFAULT}${ANSI_M}`
+  ansiStyles.color.close = `${CSI}${FOREGROUND_COLOR_DEFAULT}${FINAL_FLAG.SGR}`
 
   ansiStyles.bgColor.ansi = wrapAnsi16(ANSI_BACKGROUND_OFFSET)
   ansiStyles.bgColor.ansi256 = wrapAnsi256(ANSI_BACKGROUND_OFFSET)
   ansiStyles.bgColor.ansi16m = wrapAnsi16m(ANSI_BACKGROUND_OFFSET)
-  ansiStyles.bgColor.close = `${ANSI_ESC}${BACKGROUND_COLOR_DEFAULT}${ANSI_M}`
+  ansiStyles.bgColor.close = `${CSI}${BACKGROUND_COLOR_DEFAULT}${FINAL_FLAG.SGR}`
 }
 
 /**
@@ -304,6 +319,45 @@ function generateConvertColor(ansiStyles: AnsiStyles) {
   })
 }
 
+function generateCursorStyles(ansiStyles: AnsiStyles) {
+  const cursorCodeFactory = (finalFlag: string, defN = 1) => {
+    return (n = defN) => `${CSI}${n}${finalFlag}`
+  }
+
+  ansiStyles.cursor = {
+    // 光标上移 光标向指定的方向移动n格
+    up: cursorCodeFactory(FINAL_FLAG.CUU),
+    // 光标下移 光标向指定的方向移动n格
+    down: cursorCodeFactory(FINAL_FLAG.CUD),
+    // 光标前移 光标向指定的方向移动n格
+    forward: cursorCodeFactory(FINAL_FLAG.CUF),
+    // 光标后移 光标向指定的方向移动n格
+    back: cursorCodeFactory(FINAL_FLAG.CUB),
+    // 光标移到下一行 光标移动到下面第n（默认1）行的开头
+    nextLine: cursorCodeFactory(FINAL_FLAG.CNL),
+    // 光标移到上一行 光标移动到上面第n（默认1）行的开头
+    previousLine: cursorCodeFactory(FINAL_FLAG.CPL),
+    // 光标水平绝对 光标移动到第n（默认1）列
+    moveColumn: cursorCodeFactory(FINAL_FLAG.CHA),
+    // 光标位置 光标移动到第n行、第m列
+    move: (n = 1, m = 1) => `${CSI}${n};${m}${FINAL_FLAG.CUP}`,
+    // 擦除显示 清除屏幕的部分区域
+    // 如果n是0（或缺失），则清除从光标位置到屏幕末尾的部分。
+    // 如果n是1，则清除从光标位置到屏幕开头的部分。
+    // 如果n是2，则清除整个屏幕
+    // 如果n是3，则清除整个屏幕，并删除回滚缓存区中的所有行
+    eraseInDisplay: cursorCodeFactory(FINAL_FLAG.ED, 0),
+    // 擦除行 清除行内的部分区域
+    // 如果n是0（或缺失），清除从光标位置到该行末尾的部分。
+    // 如果n是1，清除从光标位置到该行开头的部分。
+    // 如果n是2，清除整行。光标位置不变。
+    eraseInLine: cursorCodeFactory(FINAL_FLAG.EL, 0),
+    // 向上滚动 整页向上滚动n（默认1）行。新行添加到底部
+    scrollUp: cursorCodeFactory(FINAL_FLAG.SU),
+    // 向下滚动 整页向下滚动n（默认1）行。新行添加到顶部
+    scrollDown: cursorCodeFactory(FINAL_FLAG.SD)
+  }
+}
 /**
  * 组装ANSI参数
  */
@@ -313,7 +367,7 @@ function assembleStyles() {
   generateAliasStyles(ansiStyles)
   generateCustomStyles(ansiStyles)
   generateConvertColor(ansiStyles)
-
+  generateCursorStyles(ansiStyles)
   return ansiStyles
 }
 
